@@ -11,6 +11,22 @@ import { installMockBrokerState } from "./mock/seedBrokerState";
 // frontend and backend are on different origins (e.g. two Railway services).
 installApiBaseUrl();
 
+// ── On-device debug console ────────────────────────────────────────────────
+// Loads Eruda (a floating dev-console for phones with no desktop/USB
+// debugging available) whenever the page URL has `?debug=1`. Safe no-op
+// otherwise — only pulls the script from jsDelivr when explicitly requested.
+// Usage: open  https://<your-app>/?debug=1  on the phone, tap the floating
+// circle it adds in the corner, then check its "Console" tab.
+if (new URLSearchParams(window.location.search).get("debug") === "1") {
+  const s = document.createElement("script");
+  s.src = "https://cdn.jsdelivr.net/npm/eruda";
+  document.body.appendChild(s);
+  s.onload = () => {
+    // @ts-expect-error — eruda attaches itself to window at runtime
+    window.eruda?.init();
+  };
+}
+
 // Dev-only deterministic mock data layer — see src/mock/config.ts (DEV_MODE).
 // No-op (dead-code-eliminated) in production builds.
 installMockFetch();
