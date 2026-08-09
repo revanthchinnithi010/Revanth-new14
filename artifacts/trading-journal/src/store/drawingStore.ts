@@ -119,11 +119,18 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
     drawings: s.drawings.map(d => d.id === id ? { ...d, ...patch } : d),
   })),
 
-  removeDrawing: (id) => set((s) => {
+  removeDrawing: (id) => {
     persistDeletedId(id);
-    const history = snapshot(s.drawings, s._history);
-    return { drawings: s.drawings.filter(d => d.id !== id), _history: history, _future: [], canUndo: true, canRedo: false };
-  }),
+    // Fire-and-forget DB delete — every caller (toolbar, context menu, mobile
+    // panel, drawings list) goes through this one function, so this is the
+    // single place that needs to talk to the backend. Safe to call even if
+    // a caller already issued its own DELETE first (idempotent 404, ignored).
+    fetch(`/api/drawings/${id}`, { method: "DELETE" }).catch(() => { /* offline/best-effort */ });
+    set((s) => {
+      const history = snapshot(s.drawings, s._history);
+      return { drawings: s.drawings.filter(d => d.id !== id), _history: history, _future: [], canUndo: true, canRedo: false };
+    });
+  },
 
   undo: () => set((s) => {
     if (s._history.length === 0) return s;
