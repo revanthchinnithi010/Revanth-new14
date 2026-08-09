@@ -233,8 +233,29 @@ export function LiveMarketProvider({ children }: { children: ReactNode }) {
       setWsStatus("error");
       return;
     }
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${protocol}//${window.location.host}/api/ws`;
+    // If the frontend and backend are deployed as two separate services (e.g.
+    // two Railway services on two different *.up.railway.app domains),
+    // VITE_API_BASE_URL points REST fetch() calls at the backend's origin
+    // (see installApiBaseUrl.ts). That interceptor only patches window.fetch,
+    // not the WebSocket constructor — so without this, the socket always
+    // dials window.location.host (the frontend's own static server, which
+    // has no /api/ws route) and every "tick"/"candle_update" broadcast the
+    // backend sends is delivered to a connection the browser never actually
+    // has. Ticks still show up fine in backend logs because that pipeline
+    // (provider → AlertEngine → wsManager.broadcast) runs independently of
+    // whether any client is connected.
+    const rawApiBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
+    const apiBase = rawApiBase?.trim().replace(/\/+$/, "");
+    let wsOrigin: string;
+    if (apiBase) {
+      const withScheme = /^https?:\/\//i.test(apiBase) ? apiBase : `https://${apiBase}`;
+      const parsed = new URL(withScheme);
+      wsOrigin = `${parsed.protocol === "https:" ? "wss:" : "ws:"}//${parsed.host}`;
+    } else {
+      // Same-origin deployment (single service, or local dev) — unchanged.
+      wsOrigin = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
+    }
+    const url = `${wsOrigin}/api/ws`;
     console.log(`[LiveMarket] connecting to ${url} (attempt ${reconnectAttempts.current + 1})`);
     setWsStatus("connecting");
 
@@ -441,7 +462,4 @@ export function useLiveMarketContext() {
   return useContext(LiveMarketContext);
 }
 
-/** Read tick for a single symbol — hook form, per-symbol re-render isolation. */
-export function useLivePrice(symbol: string): TickState | null {
-  return useTickStore(s => s.ticks[symbol] ?? null);
-      }
+/** Read tick for a single symbol
