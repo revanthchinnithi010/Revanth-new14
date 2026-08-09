@@ -444,4 +444,4 @@ export function useLiveMarketContext() {
 /** Read tick for a single symbol — hook form, per-symbol re-render isolation. */
 export function useLivePrice(symbol: string): TickState | null {
   return useTickStore(s => s.ticks[symbol] ?? null);
-}
+      }
